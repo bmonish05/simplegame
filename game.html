@@ -1,0 +1,252 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>NEON OVERDRIVE PRO</title>
+
+<style>
+body {
+    margin: 0;
+    background: #000;
+    overflow: hidden;
+    font-family: 'Courier New', monospace;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    height: 100vh;
+}
+
+#container {
+    position: relative;
+    border: 3px solid #00f2ff;
+    box-shadow: 0 0 20px #00f2ff;
+}
+
+#ui {
+    position: absolute;
+    top: 10px;
+    left: 10px;
+    color: #00f2ff;
+    text-shadow: 0 0 5px #00f2ff;
+    pointer-events: none;
+}
+
+#overlay {
+    position: absolute;
+    inset: 0;
+    background: rgba(0,0,0,0.85);
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    color: #fff;
+    text-align: center;
+    z-index: 100;
+}
+
+h1 {
+    color: #ff00ff;
+    text-shadow: 0 0 15px #ff00ff;
+    font-size: 2.5rem;
+    margin: 0;
+}
+
+button {
+    background: transparent;
+    border: 2px solid #00f2ff;
+    color: #00f2ff;
+    padding: 15px 30px;
+    cursor: pointer;
+    font-weight: bold;
+    margin-top: 20px;
+    transition: 0.2s;
+}
+
+button:hover {
+    background: #00f2ff;
+    color: #000;
+    box-shadow: 0 0 20px #00f2ff;
+}
+
+canvas {
+    display: block;
+    cursor: none;
+}
+</style>
+</head>
+
+<body>
+
+<div id="container">
+    <div id="ui">
+        SCORE: <span id="score">0</span><br>
+        BEST: <span id="best">0</span>
+    </div>
+
+    <div id="overlay">
+        <h1 id="status">NEON OVERDRIVE</h1>
+        <p>Dodge the Pink Glitches<br>Move your finger / mouse</p>
+        <button onclick="init()">START ENGINE</button>
+    </div>
+
+    <canvas id="g"></canvas>
+</div>
+
+<script>
+const c = document.getElementById('g');
+const x = c.getContext('2d');
+
+const scoreEl = document.getElementById('score');
+const bestEl = document.getElementById('best');
+const overlay = document.getElementById('overlay');
+const status = document.getElementById('status');
+
+let score, best, active, speed, enemies, stars, px;
+
+// 🔥 Responsive Canvas
+function resizeCanvas() {
+    const ratio = 2/3;
+
+    let w = window.innerWidth;
+    let h = window.innerHeight;
+
+    if (w / h > ratio) {
+        w = h * ratio;
+    } else {
+        h = w / ratio;
+    }
+
+    c.width = w;
+    c.height = h;
+}
+
+window.addEventListener('resize', resizeCanvas);
+resizeCanvas();
+
+// ⭐ Stars
+function createStars() {
+    stars = [];
+    for (let i = 0; i < 80; i++) {
+        stars.push({
+            x: Math.random() * c.width,
+            y: Math.random() * c.height,
+            s: Math.random() * 2
+        });
+    }
+}
+
+// ⚡ Ultra-fast Pointer Control
+function movePlayer(clientX) {
+    const rect = c.getBoundingClientRect();
+
+    px = (clientX - rect.left) * (c.width / rect.width) - 15;
+
+    px = Math.max(0, Math.min(c.width - 30, px));
+}
+
+window.addEventListener('pointermove', (e) => {
+    movePlayer(e.clientX);
+}, { passive: true });
+
+// 🚀 Start Game
+function init() {
+    score = 0;
+    speed = 5;
+    enemies = [];
+    px = c.width / 2 - 15;
+    active = true;
+
+    scoreEl.innerText = score;
+
+    best = localStorage.getItem('nb') || 0;
+    bestEl.innerText = best;
+
+    status.innerText = "NEON OVERDRIVE";
+
+    createStars();
+    overlay.style.display = 'none';
+
+    requestAnimationFrame(loop);
+}
+
+// 🔁 Game Loop
+function loop() {
+    if (!active) return;
+
+    const playerY = c.height - 60;
+
+    // Background
+    x.fillStyle = '#050505';
+    x.fillRect(0, 0, c.width, c.height);
+
+    // Stars
+    x.fillStyle = '#fff';
+    stars.forEach(s => {
+        s.y += speed * 0.4;
+        if (s.y > c.height) s.y = 0;
+        x.fillRect(s.x, s.y, s.s, s.s);
+    });
+
+    // Player
+    x.shadowBlur = 15;
+    x.shadowColor = '#00f2ff';
+    x.fillStyle = '#00f2ff';
+    x.fillRect(px, playerY, 30, 30);
+
+    // Spawn enemies
+    if (Math.random() < 0.06) {
+        enemies.push({
+            x: Math.random() * (c.width - 40),
+            y: -40,
+            w: 30 + Math.random() * 25
+        });
+    }
+
+    // Enemies
+    x.shadowColor = '#ff00ff';
+    x.fillStyle = '#ff00ff';
+
+    enemies.forEach((e, i) => {
+        e.y += speed;
+
+        x.fillRect(e.x, e.y, e.w, 30);
+
+        // 💥 Collision
+        if (
+            px < e.x + e.w &&
+            px + 30 > e.x &&
+            playerY < e.y + 30 &&
+            playerY + 30 > e.y
+        ) {
+            active = false;
+
+            status.innerText = "CRITICAL FAILURE";
+            overlay.style.display = 'flex';
+
+            if (score > best) {
+                best = score;
+                localStorage.setItem('nb', best);
+                bestEl.innerText = best;
+            }
+
+            // 📳 Mobile vibration
+            if (navigator.vibrate) navigator.vibrate(100);
+        }
+
+        // Passed enemy
+        if (e.y > c.height) {
+            enemies.splice(i, 1);
+            score++;
+            speed += 0.05;
+            scoreEl.innerText = score;
+        }
+    });
+
+    x.shadowBlur = 0;
+
+    requestAnimationFrame(loop);
+}
+</script>
+
+</body>
+</html>
